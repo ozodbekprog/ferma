@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# farmai — fermadagi online AI node'larga savol/vazifa berish.
+# Misol:  farmai "2+2 nechchi?"
+#         farmai --nodes ryzen-ai7 "hostname nima?"
+#         farmai --timeout 300 "loyihani tekshir"
+set -euo pipefail
+cd "$HOME/ferma-lab"
+exec python3 ferma-all.pyz oc "$@"

@@ -1,0 +1,147 @@
+=== gtx1650-pc exit=0 18.982s
+##### audit-1.log
+[0m
+> build  deepseek-flash
+[0m
+[0m$ [0mgrep -o '"model"[^,]*' ~/.config/opencode/opencode.json | head -2
+"model": "deepseek/deepseek-flash"
+[0m
+[0m$ [0mpython3 -c "import json;c=json.load(open('$HOME/.config/opencode/opencode.json'));print('deepseek kaliti:', 'bor' if c.get('provider',{}).get('deepseek',{}).get('options',{}).get('apiKey') else 'yoq')"
+deepseek kaliti: bor
+[0m
+[0m$ [0mpython3 -c "import json;c=json.load(open('$HOME/.config/opencode/opencode.json'));print('ruxsatlar:', c.get('permission'))"
+ruxsatlar: {'external_directory': 'allow', 'bash': 'allow', 'edit': 'allow', 'webfetch': 'allow', 'websearch': 'allow'}
+[0m
+[0m$ [0m$HOME/.opencode/bin/opencode --version
+1.18.33
+[0m
+[0m$ [0mtimeout 60 $HOME/.opencode/bin/opencode run 'Faqat raqam: 3+4' 2>&1 | tail -2
+[0m
+7
+[0m
+TOPILMALAR
+
+[OK] `opencode --version`  1.18.33 ishlaydi.
+[OK] Model: `deepseek/deepseek-flash`.
+[OK] DeepSeek API kaliti mavjud ("bor").
+[OK] `opencode run '3+4'`  `7` (AI qatlami javob beradi, ~60s limitda).
+[JIDDIY] Ruxsatlar haddan tashqari ochiq: `bash: allow`, `edit: allow`, `external_directory: allow`, `webfetch/websearch: allow`  tasdiqlashsiz istalgan buyruq/fayl o'zgarishi mumkin.
+
+3 TAVSIYA
+
+1. `bash` va `edit` ruxsatlarini `ask` ga o'zgartiring (yoki `deny` + aniq allow-ro'yxat); `external_directory` ni "allow"dan chiqaring.
+2. Audit/test uchun alohida cheklangan profil yarating (read-only agent), ishlab chiqarish konfigini bunday ochiq qoldirmang.
+3. API kalitni `opencode.json`dan ajratib, muhit o'zgaruvchisi yoki secrets-store orqali bering; konfig faylini 600 ruxsati bilan saqlang.
+
+##### audit-2.log
+100.119.43.75   fedora                hoshimov281@  linux    active; relay "nue"; offline, last seen 3d ago, tx 3120 rx 0  
+100.83.239.116  ozodbeks-macbook-pro  hoshimov281@  macOS    active; relay "waw", tx 371356 rx 682724                      
+
+# Health check:
+#     - Tailscale hasn't received a network map from the coordination server in 2m9s.
+#     - Unable to connect to the Tailscale coordination server to synchronize the state of your tailnet. Peer reachability might degrade over time.
+[0m
+[0m$ [0mtailscale status 2>&1 | grep -A3 -i 'health'
+# Health check:
+#     - Tailscale hasn't received a network map from the coordination server in 2m9s.
+#     - Unable to connect to the Tailscale coordination server to synchronize the state of your tailnet. Peer reachability might degrade over time.
+[0m
+[0m$ [0mip -brief addr 2>&1 | head -6
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+eno1             DOWN           
+wlp4s0           UP             172.20.10.6/28 fe80::c36a:65de:5e1:f6ee/64 
+tailscale0       UNKNOWN        100.87.253.88/32 fd7a:115c:a1e0::2201:fde2/128 fe80::c49:2168:40ca:664/64
+[0m
+[0m$ [0mcurl -s -o /dev/null -w 'dns: %{time_namelookup}s connect: %{time_connect}s total: %{time_total}s\n' https://ozodbeks-macbook-pro.tail91a187.ts.net/ping
+dns: 0.001699s connect: 0.182392s total: 0.589983s
+[0m
+[0m$ [0mfor i in 1 2 3; do curl -s -o /dev/null -w '%{time_total}s ' https://ozodbeks-macbook-pro.tail91a187.ts.net/ping; done; echo
+0.603715s 0.605107s 0.600172s
+[0m
+[0m$ [0mtailscale status --json 2>/dev/null | grep -i -E 'derp|relay|online|active' | head -20
+"Relay": "waw",
+    "PeerRelay": "",
+    "Online": false,
+    "Active": false,
+      "Relay": "waw",
+      "PeerRelay": "",
+      "Online": true,
+      "Active": false,
+      "Relay": "waw",
+      "PeerRelay": "",
+      "Online": true,
+      "Active": true,
+      "Relay": "nue",
+      "PeerRelay": "",
+      "Online": false,
+      "Active": true,
+[0m
+[0m$ [0mcurl -s -o /dev/null -w 'HTTP %{http_code} | dns %{time_namelookup}s connect %{time_connect}s appconnect %{time_appconnect}s ttfb %{time_starttransfer}s total %{time_total}s\n' https://ozodbeks-macbook-pro.tail91a187.ts.net/ping
+HTTP 200 | dns 0.001581s connect 0.180580s appconnect 0.398885s ttfb 0.646420s total 0.646514s
+[0m
+# TOPILMALAR
+
+**1. Tailscale koordinatsiya serveriga ulanish yo'q (asosiy muammo)**
+- `Tailscale hasn't received a network map from the coordination server in 2m9s`  tailnet holati eskirgan, peer reachability vaqt o'tishi bilan yomonlashadi.
+- Barcha peerlar `relay` orqali ishlaydi (`waw`, `nue`), to'g'ridan-to'g'ri (direct) kanal yo'q.
+
+**2. Tarmoq uplink beqaror**
+- `eno1` DOWN, `wlp4s0` = `172.20.10.6/28`  bu iPhone hotspot diapazoni; IP-manzil sakrashi va lost paketlarga moyil muhit.
+
+**3. Peer holati nosimmetrik**
+- `fedora` 3 kun offline, `tx 3120 rx 0`  o'lik yo'nalish; `fedora-1` ham offline.
+
+**4. `/ping` esa ishlaydi**
+- HTTP **200**, barqaror ~0.600.65s. DNS 1.6ms, TCP connect 180ms, TLS (appconnect) 219ms, TTFB 646ms.
+- Ya'ni DNS sog'lom; kechikishning kattasi TLS qo'l berish + upstream javobda. Demak, **502 `/ping`da emas, boshqa marshrutda** yuzaga keladi.
+
+**502 sababi (baho):** 502  bu gateway/reverse-proxy (macbook'dagi Nginx/Caddy yoki Tailscale Serve) upstream'dan yaroqli javob olmaganini bildiradi. `/ping` ishlab turgani ko'rsatadiki, proxy o'zi tirik, lekin **aynan o'sha API/backend xizmati** crash/restart holatida, noto'g'ri portga yo'naltirilgan yoki timeout olayapti. Koordinatsiya serveri uzilishi proxy'routing holatini ham eskirib qolishiga olib kelgan bo'lishi mumkin.
+
+# 3 TAVSIYA
+
+1. **Avval koordinatsiyani tiklang:** `tailscale down && tailscale up` yoki `networkmap` yangilanishini kuting. Map eskirgan holda boshqa tuzatishlar vaqtinchalik bo'ladi.
+2. **Direct ulanishga o'ting:** DERP relay o'rniga to'g'ridan-to'g'ri kanal uchun UDP 41641 va NAT port-mapping/UPnP ni tekshiring; bu 502'ga olib keluvchi timeout'ni kamaytiradi.
+3. **Upstream'ni tekshiring:** macbook'dagi proxy config'da `/` yo'naltirilgan port va backend jarayonini (`ps`/`systemctl status` yoki Caddy/Nginx log) ko'ring  502 aynan shu servis o'chganini ko'rsatadi.
+
+*Eslatma: buyruqlar faqat o'qish (read-only) rejimida bajarildi; hech narsa o'zgartirilmadi.*
+
+##### audit-3.log
+[0m
+> build  deepseek-flash
+[0m
+[0m$ [0mloginctl list-sessions --no-legend | head -4; echo "---pgrep gnome-shell---"; pgrep -c gnome-shell; echo "---command -v---"; command -v gnome-system-monitor wmctrl xdotool; echo "---ps gnome-system-monitor---"; ps -C gnome-system-monitor -o pid=; echo "---X11---"; ls /tmp/.X11-unix/ 2>/dev/null; echo "---env---"; systemctl --user show-environment | grep -E 'DISPLAY|WAYLAND|XAUTH'; echo "GDK_BACKEND=$GDK_BACKEND"
+1 1000 tony -     1157 manager -    no -
+3 1000 tony seat0 3233 user    tty2 no -
+---pgrep gnome-shell---
+2
+---command -v---
+/usr/bin/gnome-system-monitor
+/usr/bin/wmctrl
+---ps gnome-system-monitor---
+   9327
+---X11---
+X0
+X1
+---env---
+DISPLAY=:0
+GNOME_SETUP_DISPLAY=unix:/tmp/.X11-unix/X1
+WAYLAND_DISPLAY=wayland-0
+XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.K79EW3
+GDK_BACKEND=
+[0m
+## TOPILMALAR
+
+- **Sessiya turi:** Wayland (`WAYLAND_DISPLAY=wayland-0`), GNOME `gnome-shell` faol (2 ta jarayon), `seat0`/`tty2` da foydalanuvchi `tony` (uid 1000).
+- **Display:** `DISPLAY=:0` bu **Xwayland** (mutter ostidagi), `XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.K79EW3`. Bare X server emas.
+- **X socketlar:** `/tmp/.X11-unix/` da `X0` va `X1` bor (`X1` = GNOME setup display).
+- **Vositalar:** `gnome-system-monitor` , `wmctrl` , **`xdotool`  yo'q**.
+- **Jarayon:** `gnome-system-monitor` allaqachon ishlayapti (PID 9327).
+- **`GDK_BACKEND` bo'sh**  demak ilova avtomatik tanlaydi (Wayland yoki X11).
+
+**Javob:** `GDK_BACKEND=x11 + wmctrl` **qisman ishonchli**. `wmctrl` faqat Xwayland ostidagi oynalarni ko'radi/takrorlaydi; sof Wayland oynalar (masalan native gnome apps, GNOME Shell) uchun u ishlamaydi, `xdotool` esa umuman o'rnatilmagan. Shu sabab bu usul "ko'r-ko'rona" ishonchli emas.
+
+## 3 TAVSIYA
+
+1. **Skrinshot/tekshirish uchun:** Wayland-native `grim` + `slurp` yoki GNOME uchun `gnome-screenshot` / DBus `org.gnome.Shell.Screenshot` dan foydalaning  X11'ga bog'liq emas.
+2. **Oyna boshqaruvi uchun:** `xdotool`ni o'rnating (`sudo apt install xdotool`) va faqat Xwayland ilovalariga qo'llang; native Wayland uchun `ydotool` (uinput) yoki GNOME Shell extension (`wmctrl` o'rniga) ni ko'rib chiqing.
+3. **Masofadan GUI uchun:** X11 forward o'rniga **RDP** (`gnome-remote-desktop`, `systemctl --user enable --now gnome-remote-desktop`) yoki `wayvnc` dan foydalaning  Wayland sessiyasini to'liq, barqaror boshqaradi.

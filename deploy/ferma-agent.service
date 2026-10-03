@@ -1,0 +1,12 @@
+[Unit]
+Description=Ferma Agent (render/hisoblash ishchisi)
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/tony/.ferma/ferma-agent.py --pull --server http://100.87.253.88:8790 --name 70-6-191-190.cab.prima.net.ar --pointer https://gist.githubusercontent.com/ozodbekprog/3319c09855eb4cae368a11383386d440/raw/ferma-server.txt
+WorkingDirectory=/home/tony/.ferma
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

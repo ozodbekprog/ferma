@@ -1,0 +1,144 @@
+=== asror-fedora exit=0 50.257s
+##### audit-1.log
+[0m$ [0mpython3 -c "import json;d=json.load(open('$HOME/.config/opencode/opencode.json'));print('keys:',list(d.keys()));print('permissions:',len(d.get('permissions',[])))"
+keys: ['$schema', 'default_agent', 'small_model', 'permissions']
+permissions: 39
+[0m$ [0m$HOME/.opencode/bin/opencode --version
+opencode v2.0.10
+[0m$ [0m$HOME/.opencode/bin/opencode models 2>&1 | head -5
+opencode/big-pickle
+opencode/ling-3.0-flash-fin-free
+opencode/longcat-2.5-preview-free
+opencode/mimo-v2.6-flash-free
+opencode/muse-spark-1.3-contributor-free
+[0m$ [0m$HOME/.opencode/bin/opencode auth list 2>&1 | head -4
+No authenticated integrations
+> build  longcat-2.5-preview-free
+## FERMA AUDITI  v2.0.10 (opencode, 9/10: AI qatlami)
+
+### TOPILMALAR (bajarilgan buyruqlar va natijalar)
+
+**1. Versiya**
+- `opencode --version`  **v2.0.10** (muvaffaqiyatli, exit 0)
+
+**2. Autentifikatsiya**
+- `auth list`  **"No authenticated integrations"** (integratsiyalar ulanmagan)
+
+**3. Modellar ro'yxati**
+- `models`  **5 ta model topildi** (bo'sh emas):
+  - `opencode/big-pickle`
+  - `opencode/ling-3.0-flash-fin-free`
+  - `opencode/longcat-2.5-preview-free`
+  - `opencode/mimo-v2.6-flash-free`
+  - `opencode/muse-spark-1.3-contributor-free`
+
+**4. Konfiguratsiya fayli (`opencode.json`)**
+- **Kalitlar:** `$schema`, `default_agent`, `small_model`, `permissions`
+- **Ruxsatlar soni:** 39 ta
+
+**5. Ma'lumotlar bazasi**
+- `~/.local/share/opencode/` da: `log`, `opencode.db`, `opencode.db-shm`, `opencode.db-wal` (SQLite, WAL rejimda)
+
+---
+
+### SAVOLLARGA JAVOBLAR
+
+**Nega "models" ro'yxati bo'sh?**
+- Aslida bo'sh **emas**  5 ta model ko'rsatildi. Agar foydalanuvchi bo'sh ko'rdi, ehtimol:
+  - `head -5` bilan chegaralangan (to'liq ro'yxat uzunroq bo'lishi mumkin)
+  - yoki boshqa terminal/sessiyada ishlaganda auth holati farq qilgan
+
+**Qanday modellar ishlaydi?**
+- `default_agent`  asosiy model (konfigda ko'rsatilgan)
+- `small_model`  yengil vazifalar uchun (kichik/tezkor model)
+- `permissions`  39 ta ruxsat qoidasi (agentlarga cheklovlar)
+
+**v1 bilan farqi nima?**
+- **v2.0.10**  yangi arxitektura: `default_agent` va `small_model` ajratilgan, `permissions` tizimi kengaygan (39 ta), SQLite WAL rejimida ishlaydi
+- **v1**  soddaroq tuzilma, kamroq ruxsat boshqaruvi, bitta model konfiguratsiyasi
+
+---
+
+### 3 TAVSIYA
+
+1. **Auth integratsiyalarini ulang**  `auth list` bo'sh. GitHub, GitLab yoki boshqa providerlarni ulash orqali qo'shimcha imkoniyatlar oching (masalan: `opencode auth login`).
+
+2. **Model tanlashni tekshiring**  `default_agent` va `small_model` qiymatlarini ko'ring. Agar kerak bo'lsa, `opencode models` dan to'liq ro'yxatni olib, vazifaga mos model tanlang.
+
+3. **Ruxsatlarni ko'rib chiqing**  39 ta `permissions` qoidasi bor. Ularni tekshirib, keraksiz yoki xavfli ruxsatlarni olib tashlang (`opencode.json` da qo'lda yoki orqali boshqarish mumkin).
+
+---
+
+**Xulosa:** Tizim **v2.0.10** da ishlayapti, 5 ta model mavjud, 39 ta ruxsat sozlangan, lekin **auth integratsiyalar ulanmagan**. Yuqoridagi 3 tavsiyani bajarish orqali tizimni to'liq ishga tushirishingiz mumkin.
+
+##### audit-2.log
+total 44
+drwxr-xr-x. 1 asror asror    90 Sep 28 14:04 .
+drwx------. 1 asror asror   682 Sep 28 14:11 ..
+-rw-r--r--. 1 asror asror   382 Sep 25 13:17 agent.log
+-rw-------. 1 asror asror   318 Sep 28 14:01 config.json
+-rwx------. 1 asror asror 34540 Sep 28 14:33 ferma-agent.py
+[0m$ [0mid
+uid=1000(asror) gid=1000(asror) groups=1000(asror),10(wheel) context=unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023
+[0m$ [0mls -la ~/.ferma/config.json ~/.config/opencode/opencode.json 2>/dev/null
+-rw-------. 1 asror asror 4042 Sep 28 14:40 /home/asror/.config/opencode/opencode.json
+-rw-------. 1 asror asror  318 Sep 28 14:01 /home/asror/.ferma/config.json
+[0m$ [0mss -tlnp 2>/dev/null | grep -E '8787|8790' || echo 'agent/server portlari tashqariga ochiq emas'
+agent/server portlari tashqariga ochiq emas
+[0m$ [0mss -tlnp 2>/dev/null | head -14
+State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                                    
+LISTEN 0      512        127.0.0.1:49374      0.0.0.0:*    users:(("opencode",pid=2352,fd=12))       
+LISTEN 0      128          0.0.0.0:22         0.0.0.0:*                                              
+LISTEN 0      4096       127.0.0.1:631        0.0.0.0:*                                              
+LISTEN 0      4096      127.0.0.54:53         0.0.0.0:*                                              
+LISTEN 0      4096         0.0.0.0:5355       0.0.0.0:*                                              
+LISTEN 0      4096   127.0.0.53%lo:53         0.0.0.0:*                                              
+LISTEN 0      128             [::]:22            [::]:*                                              
+LISTEN 0      5                  *:3389             *:*    users:(("gnome-remote-de",pid=3931,fd=19))
+LISTEN 0      4096           [::1]:631           [::]:*                                              
+LISTEN 0      4096            [::]:5355          [::]:*                                              
+LISTEN 0      10                 *:5900             *:*    users:(("gnome-remote-de",pid=3931,fd=20))
+> build  longcat-2.5-preview-free
+## Ferma Auditi  Natijalar
+
+### TOPILMALAR
+
+| # | Daraja | Topilma |
+|---|--------|---------|
+| 1 | **JIDDIY** | RDP (port 3389) va VNC (port 5900) **tashqariga ochiq**  `gnome-remote-de` (pid 3931) faol. Masofaviy kirish to'g'ridan-to'g'ri mumkin. |
+| 2 | **O'RTA** | SSH (port 22) tashqarida  agar parol autentifikatsiya ochiq bo'lsa, hujum vektori. LLMNR (5355) ham tashqarida. |
+| 3 | **OK** | `~/.ferma/config.json` va `opencode.json`  **0600** (faqat egasi). Token qiymati chiqarilmagan. Agent portlari (8787/8790) tashqariga ochiq emas. OpenCode localhostda (127.0.0.1:49374). |
+
+### Tafsilotlar
+
+- **gnome-remote-desktop**  RDP/VNC orqali grafik masofaviy kirish. Parol kiritilsa, to'liq nazorat olinadi.
+- **agent.log**  0644 (o'qish mumkin). Logda token yoki secret bo'lishi mumkin.
+- **SELinux**  `unconfined` rejim (cheklovsiz).
+
+---
+
+### 3 TAVSIYA
+
+**1. gnome-remote-desktop'ni o'chirish yoki cheklash**
+```bash
+systemctl --user stop gnome-remote-desktop
+# yoki firewall bilan faqat LAN'ga cheklash
+sudo firewall-cmd --remove-service=vnc-server --permanent
+sudo firewall-cmd --reload
+```
+
+**2. SSH uchun kalit autentifikatsiyaga o'tish**
+```bash
+# Parol kirishni o'chirish
+sudo sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+sudo systemctl restart sshd
+```
+
+**3. agent.log ruxsatini tuzatish**
+```bash
+chmod 600 ~/.ferma/agent.log
+```
+
+---
+
+**Xulosa**: Eng katta xavf  RDP/VNC ochiqligi. Qolganlari yuqori darajali tizim xavfsizligi bilan mos.

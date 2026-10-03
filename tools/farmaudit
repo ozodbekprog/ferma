@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+exec python3 "$HOME/.ferma/audit/run_audit.py" "$@"

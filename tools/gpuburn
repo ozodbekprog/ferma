@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""GPU burn — NVIDIA kartalarda (ctypes + qo'lda yozilgan PTX). Kutubxona kerak emas."""
+import argparse
+import ctypes
+import subprocess
+import sys
+import time
+
+PTX = b"""
+.version 6.4
+.target sm_70
+.address_size 64
+
+.visible .entry burn(
+    .param .u64 param_out,
+    .param .u32 param_iters,
+    .param .u32 param_seed
+)
+{
+    .reg .pred p1;
+    .reg .b32 r<8>;
+    .reg .b64 rd<4>;
+    .reg .f32 f<6>;
+
+    ld.param.u64 rd1, [param_out];
+    ld.param.u32 r1, [param_iters];
+    ld.param.u32 r2, [param_seed];
+
+    mov.u32 r3, %ctaid.x;
+    mov.u32 r4, %ntid.x;
+    mov.u32 r5, %tid.x;
+    mad.lo.u32 r3, r3, r4, r5;
+    cvt.rn.f32.u32 f1, r3;
+    add.f32 f1, f1, f1;
+
+    mov.f32 f2, 0f3F800000;
+    mov.f32 f3, 0f358637BD;
+    mov.f32 f4, 0f3F7FFFFF;
+    add.f32 f5, f3, f4;
+
+    mov.u32 r6, 0;
+L1:
+    setp.ge.u32 p1, r6, r1;
+    @p1 bra L2;
+    fma.rn.f32 f1, f1, f2, f3;
+    fma.rn.f32 f2, f2, f4, f5;
+    add.u32 r6, r6, 1;
+    bra L1;
+L2:
+    mul.wide.u32 rd2, r3, 4;
+    add.s64 rd3, rd1, rd2;
+    st.global.f32 [rd3], f1;
+    ret;
+}
+\x00"""
+
+
+def gpu_sample():
+    try:
+        r = subprocess.run(
+            ["nvidia-smi",
+             "--query-gpu=utilization.gpu,memory.used,temperature.gpu,power.draw,clocks.sm",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5)
+        line = (r.stdout or "").strip().splitlines()
+        return line[0] if line else ""
+    except Exception:
+        return ""
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--seconds", type=int, default=60)
+    ap.add_argument("--iters", type=int, default=20_000_000)
+    args = ap.parse_args()
+
+    cu = ctypes.CDLL("libcuda.so.1")
+    if cu.cuInit(0) != 0:
+        print("FAIL: cuInit")
+        return 1
+    dev = ctypes.c_int()
+    cu.cuDeviceGet(ctypes.byref(dev), 0)
+    ctx = ctypes.c_void_p()
+    cu.cuCtxCreate_v2(ctypes.byref(ctx), 0, dev)
+
+    mod = ctypes.c_void_p()
+    rc = cu.cuModuleLoadData(ctypes.byref(mod), PTX)
+    if rc != 0:
+        print(f"FAIL: PTX yuklanmadi (rc={rc})")
+        return 1
+    func = ctypes.c_void_p()
+    cu.cuModuleGetFunction(ctypes.byref(func), mod, b"burn")
+    sm = ctypes.c_int()
+    cu.cuDeviceGetAttribute(ctypes.byref(sm), 16, dev)
+
+    dptr = ctypes.c_void_p()
+    cu.cuMemAlloc_v2(ctypes.byref(dptr), 4096 * 4)
+
+    blocks = max(4, sm.value * 16)
+    threads = 256
+    gx = blocks
+    iters_v = ctypes.c_uint32(args.iters)
+    n_launch = 0
+    max_util = 0
+    t0 = time.time()
+    last_print = 0
+
+    while time.time() - t0 < args.seconds:
+        out_arg = ctypes.c_uint64(dptr.value)
+        iters_arg = ctypes.c_uint32(args.iters)
+        seed_arg = ctypes.c_uint32(n_launch + 1)
+        args_arr = (ctypes.c_void_p * 3)(
+            ctypes.cast(ctypes.byref(out_arg), ctypes.c_void_p),
+            ctypes.cast(ctypes.byref(iters_arg), ctypes.c_void_p),
+            ctypes.cast(ctypes.byref(seed_arg), ctypes.c_void_p),
+        )
+        rc = cu.cuLaunchKernel(func, gx, 1, 1, threads, 1, 1, 0, None, args_arr, None)
+        if rc != 0:
+            print(f"FAIL: launch rc={rc}")
+            return 1
+        cu.cuCtxSynchronize()
+        n_launch += 1
+        el = int(time.time() - t0)
+        if el - last_print >= 5:
+            last_print = el
+            s = gpu_sample()
+            if s:
+                try:
+                    max_util = max(max_util, int(float(s.split(",")[0])))
+                except Exception:
+                    pass
+            print(f"  ... {el}s launch={n_launch} sm={sm.value} | {s}", flush=True)
+
+    s = gpu_sample()
+    print(f"GPU PASS: {args.seconds}s launch={n_launch} blocks={blocks} iters={args.iters} "
+          f"max_util={max_util}% | {s}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

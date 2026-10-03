@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""Markazga admin token bilan buyruq/fayl yuborish.
+
+Ishlatish:
+  center_run.py 'cmd' [node|all] [timeout] [--file f1 --file f2]
+"""
+import argparse
+import base64
+import json
+import os
+import sys
+import urllib.request
+
+TOKEN = open(os.path.expanduser('~/.ferma/center-token.txt')).read().strip()
+BASE = 'https://ozodbeks-macbook-pro.tail91a187.ts.net'
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('cmd')
+    ap.add_argument('node', nargs='?', default='all')
+    ap.add_argument('timeout', nargs='?', type=int, default=60)
+    ap.add_argument('--file', action='append', default=[])
+    args = ap.parse_args()
+
+    files = {}
+    for path in args.file:
+        with open(path, 'rb') as f:
+            files[os.path.basename(path)] = base64.b64encode(f.read()).decode()
+
+    req = urllib.request.Request(
+        BASE + '/api/run',
+        data=json.dumps({'cmd': args.cmd, 'nodes': args.node,
+                         'timeout': args.timeout, 'collect': [] if not files else [],
+                         'files': files}).encode(),
+        headers={'X-Farm-Token': TOKEN, 'Content-Type': 'application/json'},
+        method='POST')
+    with urllib.request.urlopen(req, timeout=args.timeout + 150) as r:
+        res = json.load(r)
+    if not res.get('ok'):
+        print('API XATO:', res.get('error'))
+        sys.exit(1)
+    for name, rr in (res.get('job', {}).get('results', {}) or {}).items():
+        print(f'=== {name} exit={rr.get("exit")} {rr.get("duration_s")}s')
+        out = (rr.get('stdout') or '').strip()
+        if out:
+            print(out)
+        err = (rr.get('stderr') or '').strip()
+        if err:
+            print('[stderr]', err[:500])
+        if rr.get('error'):
+            print('[xato]', rr['error'])
+
+
+if __name__ == '__main__':
+    main()

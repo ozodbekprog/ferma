@@ -1,0 +1,13 @@
+{
+  "token": "",
+  "worker_token": "",
+  "join_key": "",
+  "agent_port": 8787,
+  "server_port": 8790,
+  "server_bind": "auto",
+  "agent_bind": "auto",
+  "network": "auto",
+  "admin_password": "",
+  "node_roles": {},
+  "center_url": ""
+}

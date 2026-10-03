@@ -1,0 +1,141 @@
+=== Ozodbeks-MBP exit=0 20.821s
+##### audit-1.log
+[0m
+[0m$ [0mgrep -nE 'HTTPServer|bind|0\.0\.0\.0|127\.0\.0\.1|serve_forever|8790|Server\(' ~/Documents/Default\ Project/ferma/server.py | head -20
+11:Dashboard sukut bo'yicha faqat 127.0.0.1 da ochiladi (xavfsizlik).
+13:    python3 server.py            # http://127.0.0.1:8790
+14:    python3 server.py --bind 0.0.0.0   # Tailscale orqali boshqa PC dan ko'rish
+31:from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+1167:    ap.add_argument("--bind", default=CFG.get("server_bind", "auto"))
+1168:    ap.add_argument("--port", type=int, default=int(CFG.get("server_port", 8790)))
+1171:    bind = args.bind
+1172:    if bind in ("auto", "", None):
+1173:        bind = fl.primary_ip() or "127.0.0.1"
+1181:    print(f"  manzil     : http://{bind}:{args.port}")
+1182:    host = f"{bind}:{args.port}"
+1190:    if bind == "0.0.0.0":
+1192:    srv = ThreadingHTTPServer((bind, args.port), Handler)
+1194:        srv.serve_forever()
+[0m
+[0m→ [0mRead /Users/ozodbekxoshimov/Documents/Default Project/ferma/server.py[90m [offset=55, limit=60][0m
+[0m→ [0mRead /Users/ozodbekxoshimov/Documents/Default Project/ferma/server.py[90m [offset=1079, limit=45][0m
+[0m
+[0m$ [0mps -o command= -p 13451 2>/dev/null; echo "---"; grep -nE 'SESSION_TTL|LOGIN_WINDOW|LOGIN_MAX_FAILS|LOGIN_BLOCK' ~/Documents/Default\ Project/ferma/server.py | head
+/Users/ozodbekxoshimov/.local/bin/python3 -u server.py
+---
+47:SESSION_TTL = 24 * 3600
+48:LOGIN_MAX_FAILS = 5          # shu nechta xatodan keyin blok
+49:LOGIN_WINDOW = 300.0         # xatolar hisoblanadigan oyna (s)
+50:LOGIN_BLOCK = 300.0          # blok davomiyligi (s)
+71:        if time.time() - s["ts"] > SESSION_TTL:
+88:        fails = [t for t in _login_fails.get(ip, []) if now - t < LOGIN_WINDOW]
+90:        if len(fails) >= LOGIN_MAX_FAILS:
+91:            return max(0.0, LOGIN_BLOCK - (now - fails[-1]))
+1102:                  f"Max-Age={SESSION_TTL}")
+1106:                           "expires_in": SESSION_TTL}).encode("utf-8")
+[0m
+[0m$ [0mpython3 -c "import json;c=json.load(open('/Users/ozodbekxoshimov/Documents/Default Project/ferma/config.json'));print('server_bind=',c.get('server_bind'));print('server_port=',c.get('server_port'));print('keys:',sorted(c.keys()))"
+server_bind= 0.0.0.0
+server_port= 8790
+keys: ['admin_password', 'agent_bind', 'agent_port', 'aliases', 'center_url', 'join_key', 'network', 'node_roles', 'public_url', 'server_bind', 'server_port', 'token', 'worker_token']
+[0m
+[0m$ [0mgrep -nE 'def _session_id|def _token|Bearer|Authorization|token' ~/Documents/Default\ Project/ferma/server.py | head -15
+38:TOKEN = CFG["token"]                       # admin token — to'liq boshqaruv
+39:WORKER_TOKEN = CFG.get("worker_token") or TOKEN   # ishchilar uchun cheklangan token
+58:    sid = secrets.token_urlsafe(24)
+157:        res = fl.http_json(url, token=WORKER_TOKEN, timeout=timeout)
+354:                url, method="POST", token=WORKER_TOKEN,
+425:                            token=WORKER_TOKEN, payload=payload, timeout=timeout + 15)
+635:const TOK=new URLSearchParams(location.search).get('token')||localStorage.getItem('ferma_token')||'';
+636:if(TOK)localStorage.setItem('ferma_token',TOK);
+871:    def _token(self) -> str | None:
+872:        """So'rov tokeni: X-Farm-Token sarlavhasi yoki ?token= parametri."""
+876:            tok = (q.get("token") or [None])[0]
+880:        """Admin token — to'liq boshqaruv."""
+881:        return fl.token_ok(self._token(), TOKEN)
+884:        """Ishchi tokeni (yoki admin tokeni) — faqat agent endpointlari uchun."""
+885:        tok = self._token()
+[0m
+**TOPILMALAR** (Markaz server qatlami, 1/10)
+
+- **[JIDDIY]** Server butun tarmoqqa ochiq: `config.json → server_bind = "0.0.0.0"`, lsof esa `TCP *:8790 (LISTEN)` ko'rsatyapti. Dashboard faqat 127.0.0.1/Tailscale uchun mo'ljallangan bo'lsa-da, amalda LAN/Wi-Fi dagi har qanday qurilma ko'radi. TLS ham yo'q (http).
+- **[JIDDIY]** Admin token URL query orqali uzatiladi: `_token()` `?token=` parametrini o'qiydi, frontend esa `localStorage` da saqlaydi (satr 635–636). Query tokenlar loglar/history/referer orqali oqib ketadi; bu to'liq boshqaruv tokeni.
+- **[O'RTA]** Sessiya IP ga bog'lanmagan: `new_session()` IP ni saqlaydi, lekin `session_valid()` faqat TTL ni tekshiradi — sid oshkor bo'lsa, boshqa IP dan qayta ishlatiladi (session hijack).
+- **[O'RTA]** Login javobida sid ikki joyda: cookie + JSON tanasida (`"session": sid`). Tana log/cache'ga tushsa, sessiya sizib chiqadi. `Secure` flag faqat `req_scheme=="https"` bo'lganda qo'shiladi, hozir http bo'lgani uchun yo'q.
+- **[OK]** Login rate-limit bor va to'g'ri: `LOGIN_MAX_FAILS=5 / WINDOW=300s / BLOCK=300s`, `login_blocked()` hisobi sog'lom, muvaffaqiyatda `clear_login_fails()`.
+- **[OK]** `sameSite=Lax + HttpOnly` cookie, `X-Content-Type-Options: nosniff`, xato parol 401, blokda 429 — yaxshi; log tail'da error/traceback yo'q.
+
+**3 ta aniq tavsiya**
+
+1. `config.json` da `server_bind` ni `"127.0.0.1"` (yoki faqat Tailscale IP) ga o'zgartirib serverni qayta ishga tushiring; tashqi kirishni `tailscale serve` yoki TLS-proxy ortidan bering (`tailscale serve status` hozir bo'sh).
+2. Admin tokenni URL/localStorage dan olib tashlang — faqat `X-Farm-Token` sarlavhasi + session cookie ishlatilsin; query orqali token qabul qilishni o'chiring.
+3. `session_valid()` ichida saqlangan IP ni joriy `client_address` bilan solishtirib bog'lang va sid ni JSON tanasidan chiqarib, faqat Secure cookie bilan bering; HTTPS ni majburiy qiling.
+
+##### audit-2.log
+[0m
+> build · deepseek-flash
+[0m
+[fariza.integrations] 103 ta tool topildi
+[0m$ [0mlaunchctl list | grep -i ferma; echo "---PS---"; ps ax | grep -iE 'ferma|opencode' | grep -v grep | head -6; echo "---UPTIME---"; uptime; echo "---DF---"; df -h / | tail -1; echo "---VM---"; vm_stat | head -4; echo "---LOG---"; tail -20 ~/.ferma/agent.log 2>/dev/null; echo "---TAILSCALE---"; tailscale status 2>/dev/null | head -8
+13451-15com.ferma.server
+11584-15uz.ferma.agent
+14159-15com.ferma.digispark-flash
+8577-15com.ferma.lmsproxy
+---PS---
+ 4317   ??  S      0:09.24 /Users/ozodbekxoshimov/.local/bin/python3 -u /Users/ozodbekxoshimov/.fariza/config/opencode/autochat/autochat.py run
+ 5812   ??  Ss     8:57.05 /Users/ozodbekxoshimov/Library/Application Support/ai.opencode.desktop/cli/2.0.18/opencode-cli serve --service
+ 6629   ??  S      1:45.07 /Applications/OpenCode.app/Contents/MacOS/OpenCode
+ 6631   ??  S     11:32.61 /Applications/OpenCode.app/Contents/Frameworks/OpenCode Helper.app/Contents/MacOS/OpenCode Helper --type=gpu-process --user-data-dir=/Users/ozodbekxoshimov/Library/Application Support/ai.opencode.desktop --gpu-preferences=WAAAAAAAAAAgAQAEAAAAAAAAAAAAAGAAQAAAAAAAAAADAAAAAAAAADgAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAoAAAAAAAAAAgAAAAAAAAAEAAAAAIAAAABAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --shared-files --field-trial-handle=1718379636,r,12215116625976367061,3421520906422853635,262144 --enable-features=DocumentPolicyIncludeJSCallStacksInCrashReports,PdfUseShowSaveFilePicker,ScreenCaptureKitPickerScreen,ScreenCaptureKitStreamPickerSonoma --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TimeoutHangingVideoCaptureStarts,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1935764596,r,8762321169841042790,17626987030093034687,4 --trace-process-track-uuid=3190708988185955192 --seatbelt-client=30
+ 6632   ??  S      0:16.20 /Applications/OpenCode.app/Contents/Frameworks/OpenCode Helper.app/Contents/MacOS/OpenCode Helper --type=utility --utility-sub-type=network.mojom.NetworkService --lang=en-US --service-sandbox-type=network --user-data-dir=/Users/ozodbekxoshimov/Library/Application Support/ai.opencode.desktop --standard-schemes=oc --secure-schemes=oc --fetch-schemes=oc --streaming-schemes=oc --code-cache-schemes=oc --shared-files --field-trial-handle=1718379636,r,12215116625976367061,3421520906422853635,262144 --enable-features=DocumentPolicyIncludeJSCallStacksInCrashReports,PdfUseShowSaveFilePicker,ScreenCaptureKitPickerScreen,ScreenCaptureKitStreamPickerSonoma --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TimeoutHangingVideoCaptureStarts,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1935764596,r,8762321169841042790,17626987030093034687,4 --trace-process-track-uuid=3190708989122997041 --seatbelt-client=29
+ 6634   ??  S     13:12.62 /Applications/OpenCode.app/Contents/Frameworks/OpenCode Helper (Renderer).app/Contents/MacOS/OpenCode Helper (Renderer) --type=renderer --user-data-dir=/Users/ozodbekxoshimov/Library/Application Support/ai.opencode.desktop --standard-schemes=oc --secure-schemes=oc --fetch-schemes=oc --streaming-schemes=oc --code-cache-schemes=oc --app-path=/Applications/OpenCode.app/Contents/Resources/app.asar --enable-sandbox --lang=en-US --num-raster-threads=4 --enable-zero-copy --enable-gpu-memory-buffer-compositor-resources --enable-main-frame-before-activation --renderer-client-id=5 --launch-time-ticks=4634671672 --shared-files --field-trial-handle=1718379636,r,12215116625976367061,3421520906422853635,262144 --enable-features=DocumentPolicyIncludeJSCallStacksInCrashReports,PdfUseShowSaveFilePicker,ScreenCaptureKitPickerScreen,ScreenCaptureKitStreamPickerSonoma --disable-features=DropInputEventsWhilePaintHolding,LocalNetworkAccessChecks,ScreenAIOCREnabled,SpareRendererForSitePerProcess,TimeoutHangingVideoCaptureStarts,TraceSiteInstanceGetProcessCreation --variations-seed-version --pseudonymization-salt-handle=1935764596,r,8762321169841042790,17626987030093034687,4 --trace-process-track-uuid=3190708990997080739 --opencode-window=%7B%22id%22%3A%2261ffed31-583b-44a3-b5c9-c73616b74e8b%22%2C%22firstLaunchPending%22%3Afalse%2C%22defaultServerUrl%22%3Anull%7D --seatbelt-client=54
+---UPTIME---
+16:02  up  6:10, 2 users, load averages: 4.13 4.40 6.58
+---DF---
+/dev/disk1s4s1   932Gi    12Gi   838Gi     2%    459k  4.3G    0%   /
+---VM---
+Mach Virtual Memory Statistics: (page size of 4096 bytes)
+Pages free:                                    11890.
+Pages active:                                1403451.
+Pages inactive:                              1399651.
+---LOG---
+[13:20:22] Ferma agent 0.1.0 ishga tushdi
+[13:20:22]   host : Ozodbeks-MacBook-Pro.local (Darwin x86_64)
+[13:20:22]   CPU  : Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz x16 | RAM 17.2GB
+[13:20:22]   GPU  : Intel UHD Graphics 630, AMD Radeon Pro 5500M
+[13:20:22]   manzil: http://100.83.239.116:8787
+[13:23:34] Ferma agent 0.1.0 ishga tushdi
+[13:23:34]   host : Ozodbeks-MacBook-Pro.local (Darwin x86_64)
+[13:23:34]   CPU  : Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz x16 | RAM 17.2GB
+[13:23:34]   GPU  : Intel UHD Graphics 630, AMD Radeon Pro 5500M
+[13:23:34]   manzil: http://100.83.239.116:8787
+[13:43:28] Ferma agent 0.1.0 ishga tushdi
+[13:43:28]   host : Ozodbeks-MBP (Darwin x86_64)
+[13:43:28]   CPU  : Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz x16 | RAM 17.2GB
+[13:43:28]   GPU  : Intel UHD Graphics 630, AMD Radeon Pro 5500M
+[13:43:28]   manzil: http://100.83.239.116:8787
+[14:00:37] Ferma agent 0.1.0 ishga tushdi
+[14:00:37]   host : Ozodbeks-MBP (Darwin x86_64)
+[14:00:37]   CPU  : Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz x16 | RAM 17.2GB
+[14:00:37]   GPU  : Intel UHD Graphics 630, AMD Radeon Pro 5500M
+[14:00:37]   manzil: http://100.83.239.116:8787
+---TAILSCALE---
+[0m
+TOPILMALAR
+
+[JIDDIY] Ferma agent qayta-qayta ishga tushmoqda (restart loop). `~/.ferma/agent.log` da 13:20, 13:23, 13:43, 14:00 — ~40 daqiqada 4 marta start. Shu bilan birga host nomi `Ozodbeks-MacBook-Pro.local` → `Ozodbeks-MBP` ga o'zgargan. Agent beqaror, sabab aniqlanishi kerak.
+
+[JIDDIY] Xotira (RAM) deyarli tugagan. `vm_stat`: Pages free = 11890 (~46 MB bo'sh, 4096 bayt/sahifa). Active 1.40M (~5.5 GB) + Inactive 1.40M (~5.5 GB). 17.2 GB RAM uchun bo'sh xotira kritik darajada — bu agent restarti va sekinlashuvning ehtimoliy sababi.
+
+[O'RTA] `tailscale status` bo'sh chiqdi. Agent `http://100.83.239.116:8787` (tailnet IP) da e'lon qilinadi, lekin Tailscale CLI javob bermadi — tailnet ko'rinmasa, tashqi kirish ishlamasligi mumkin.
+
+[OK] Disk: `/` 932 GB, ishlatilgan 12 GB, bo'sh 838 GB (2%). Joy yetarli.
+
+[OK] launchd: 4 ta xizmat yuklangan va PID bilan turibdi — `com.ferma.server` (13451), `uz.ferma.agent` (11584), `com.ferma.digispark-flash` (14159), `com.ferma.lmsproxy` (8577). Ikkinchi ustundagi `-15` — oldingi SIGTERM chiqishi, hozir tirik.
+
+[OK] Yuklama: load average 4.13 / 4.40 / 6.58 (16 yadro) — me'yorda, kritik emas.
+
+3 TA TavSIYA
+
+1. RAM bosimini tekshir: `memory_pressure` va eng ko'p yeydigan jarayonni top (`ps aux | sort -nrk 4 | head`). OpenCode renderer/GPU jarayonlari va Ferma agentni bir vaqtda kamaytirish yoki agentga xotira limiti qo'yish.
+2. Agent restart sababini aniqlash: `launchctl print gui/$(id -u)/uz.ferma.agent` (KeepAlive/ThrottleInterval) va to'liq log (`log show --predicate 'process == "ferma"' --last 2h`) — crash bo'lsa stack trace ni olish.
+3. Tailscale holatini tiklash: `tailscale status`/`tailscale up` (yoki app ishga tushganini) tekshir; agent e'lon qiladigan 100.83.239.116 manzil tashqaridan ochilishini tasdiqla.

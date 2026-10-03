@@ -1,0 +1,13 @@
+[Unit]
+Description=Ferma markazi (controller) — fedora-1
+After=network-online.target
+
+[Service]
+Type=simple
+Environment=FERMA_HOME=/home/tony/.ferma
+ExecStart=/usr/bin/python3 /home/tony/ferma-lab/ferma-all.pyz serve --bind 100.87.253.88 --port 8790
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

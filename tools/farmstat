@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+"""farmstat — Ferma holati va statistikasi (markaz API orqali).
+
+Ishlatish:
+  farmstat          holat + statistika + oxirgi vazifalar
+  farmstat -a       qo'shimcha: har bir online node'da AI (opencode) tekshiruvi
+  farmstat -j N     oxirgi N ta vazifa (default 5)
+"""
+import argparse
+import json
+import os
+import sys
+import time
+import urllib.request
+
+TOKEN_PATH = os.path.expanduser("~/.ferma/center-token.txt")
+
+
+def _center_base() -> str:
+    try:
+        with open(os.path.expanduser("~/.ferma/config.json"), encoding="utf-8") as f:
+            url = (json.load(f).get("center_url") or "").rstrip("/")
+            if url:
+                return url
+    except Exception:
+        pass
+    return "http://100.87.253.88:8790"
+
+
+BASE = _center_base()
+
+
+def api(path, payload=None, timeout=30):
+    req = urllib.request.Request(
+        BASE + path,
+        data=json.dumps(payload).encode() if payload is not None else None,
+        headers={"X-Farm-Token": TOKEN,
+                 **({"Content-Type": "application/json"} if payload is not None else {})},
+        method="POST" if payload is not None else "GET",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.load(r)
+
+
+def human_uptime(seconds):
+    if not seconds:
+        return "—"
+    seconds = int(seconds)
+    d, rem = divmod(seconds, 86400)
+    h, rem = divmod(rem, 3600)
+    m = rem // 60
+    if d:
+        return f"{d}k {h}s"
+    if h:
+        return f"{h}s {m}m"
+    return f"{m}m"
+
+
+def state_str(n):
+    if n.get("online"):
+        return "online"
+    sec = n.get("last_seen_s")
+    if n.get("mode") == "pull" and sec is not None:
+        sec = int(sec)
+        if sec < 60:
+            return f"off {sec}s"
+        if sec < 3600:
+            return f"off {sec // 60}m"
+        return f"off {sec // 3600}h"
+    return "offline"
+
+
+def ai_check(names):
+    cmd = ('echo "opencode: $(~/.opencode/bin/opencode --version 2>&1 | tail -1) | '
+           'model: $(grep -o \'"model": *"[^"]*"\' ~/.config/opencode/opencode.json 2>/dev/null | head -1 | cut -d\\" -f4)"')
+    try:
+        res = api("/api/run", {"cmd": cmd, "nodes": names,
+                                "timeout": 30, "collect": []}, timeout=120)
+        return res.get("job", {}).get("results", {}) or {}
+    except Exception as e:
+        return {"_err": {"error": str(e)}}
+
+
+def main():
+    global TOKEN
+    ap = argparse.ArgumentParser(add_help=True)
+    ap.add_argument("-a", "--ai", action="store_true", help="AI tayyorlik tekshiruvi")
+    ap.add_argument("-j", "--jobs", type=int, default=5, help="oxirgi vazifalar soni")
+    args = ap.parse_args()
+
+    if not os.path.exists(TOKEN_PATH):
+        print("XATO: ~/.ferma/center-token.txt yo'q. Markaz admin tokenini yozing.")
+        sys.exit(1)
+    TOKEN = open(TOKEN_PATH).read().strip()
+
+    try:
+        nodes = api("/api/nodes?force=1").get("nodes", [])
+    except Exception as e:
+        print(f"XATO: markazga ulanib bo'lmadi ({BASE}): {e}")
+        sys.exit(1)
+
+    nodes.sort(key=lambda x: (not x.get("online"), str(x.get("name"))))
+    on = [n for n in nodes if n.get("online")]
+
+    print(f"FERMA HOLATI — {time.strftime('%Y-%m-%d %H:%M')}  ({BASE})")
+    print()
+    disk_hdr = "DISK BO'SH"
+    hdr = (f"{'NOM':21} {'ROL':11} {'HOLAT':9} {'CPU':24} {'C':3} {'RAM':6} "
+           f"{disk_hdr:10} {'GPU':30} {'LAT':6}")
+    print(hdr)
+    print("-" * len(hdr))
+    for n in nodes:
+        gpu = ", ".join(n.get("gpus") or []) or "—"
+        disk = n.get("disk") or {}
+        free = f"{disk.get('free_gb')}GB" if disk.get("free_gb") is not None else "—"
+        lat = f"{n.get('latency_ms')}ms" if n.get("online") and n.get("latency_ms") else "—"
+        print(f"{str(n.get('name'))[:20]:21} {str(n.get('role') or 'worker'):11} "
+              f"{state_str(n):9} {str(n.get('cpu') or '—')[:23]:24} "
+              f"{str(n.get('cores') or '—'):3} {str(n.get('ram_gb') or '—'):6} "
+              f"{free:10} {gpu[:29]:30} {lat:6}")
+
+    tot_ram = sum(n.get("ram_gb") or 0 for n in on)
+    tot_free = sum((n.get("disk") or {}).get("free_gb") or 0 for n in on)
+    print()
+    print(f"JAMI: {len(on)}/{len(nodes)} online | RAM {tot_ram:.0f}GB | "
+          f"bo'sh disk {tot_free:.0f}GB")
+
+    workers = [n["name"] for n in on if (n.get("role") or "worker") != "controller"]
+    print(f"AI ishchi node'lar (online): {', '.join(workers) or 'yo‘q'}")
+
+    if args.ai and workers:
+        print()
+        print("AI TEKSHIRUVI (opencode):")
+        res = ai_check(workers)
+        for name in workers:
+            rr = res.get(name)
+            if not rr:
+                print(f"  {name:20} javob yo'q")
+                continue
+            out = (rr.get("stdout") or "").strip().replace("\n", " ")
+            err = (rr.get("error") or rr.get("stderr") or "").strip()[:80]
+            print(f"  {name:20} {out or ('XATO ' + err)}")
+
+    if args.jobs > 0:
+        try:
+            jobs = api("/api/jobs").get("jobs", [])[:args.jobs]
+            if jobs:
+                print()
+                print(f"OXIRGI VAZIFALAR ({len(jobs)}):")
+                for j in jobs:
+                    res = j.get("results") or {}
+                    ok = sum(1 for r in res.values() if r.get("ok"))
+                    total = len(j.get("targets") or res)
+                    print(f"  {j.get('id','')[:10]}  {j.get('created_at','')[:16]}  "
+                          f"ok={ok}/{total}  {str(j.get('cmd',''))[:60]}")
+        except Exception:
+            pass
+
+
+if __name__ == "__main__":
+    main()

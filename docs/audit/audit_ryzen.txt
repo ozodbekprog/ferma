@@ -1,0 +1,172 @@
+=== ryzen-ai7 exit=0 9.341s
+##### audit-1.log
+[0m
+> build  deepseek-flash
+[0m
+[0m$ [0mnvidia-smi --query-gpu=name,driver_version,memory.total,memory.used,temperature.gpu,power.draw,clocks.sm --format=csv,noheader 2>&1; echo "---EXIT:$?---"
+NVIDIA GeForce RTX 5060 Laptop GPU, 615.71.09, 8151 MiB, 2645 MiB, 34, 9.93 W, 712 MHz
+---EXIT:0---
+[0m
+[0m$ [0mnvidia-smi 2>&1 | tail -6; echo "---EXIT:$?---"
+|=========================================================================================|
+|    0   N/A  N/A            4343      G   /usr/bin/xwaylandvideobridge              2MiB |
+|    0   N/A  N/A            7255      G   /usr/lib64/firefox/firefox               53MiB |
+|    0   N/A  N/A           12972      G   gnome-system-monitor                     48MiB |
+|    0   N/A  N/A           15493      C   ...llama/lib/ollama/llama-server       2424MiB |
++-----------------------------------------------------------------------------------------+
+---EXIT:0---
+[0m
+[0m$ [0mls /usr/lib64/libcuda.so* 2>/dev/null | head -3; echo "---EXIT:$?---"
+/usr/lib64/libcuda.so
+/usr/lib64/libcuda.so.1
+/usr/lib64/libcuda.so.615.71.09
+---EXIT:0---
+[0m
+[0m$ [0mpython3 -c 'import ctypes; ctypes.CDLL("libcuda.so.1"); print("libcuda OK")' 2>&1; echo "---EXIT:$?---"
+libcuda OK
+---EXIT:0---
+[0m
+## TOPILMALAR (GPU qatlami)
+
+**GPU holati:** NVIDIA GeForce RTX 5060 Laptop GPU aniqlandi, faol ishlayapti.
+- Drayver: **615.71.09** (`libcuda.so.615.71.09` mos keladi)
+- Xotira: **8151 MiB** umumiy, **2645 MiB** band (32%)
+- Harorat: **34C** (sovuq, yuklama yo'q)
+- Quvvat: **9.93 W**, SM klok **712 MHz** (idle rejim)
+
+**Bandlik:** 2.4 GB'ni `ollama/llama-server` egallagan (2424 MiB), qolganlar Firefox (53 MiB), xwaylandvideobridge, gnome-system-monitor  ahamiyatsiz.
+- **Bo'sh xotira: ~5.5 GB**  7B model (Q4) sig'adi, 13B+ sig'maydi.
+
+**Kutubxonalar:** `/usr/lib64/libcuda.so`, `.so.1` va versiyalangan `.so.615.71.09` mavjud; `ctypes.CDLL("libcuda.so.1")`  **libcuda OK**. CUDA runtime qatlami to'liq ishlaydi.
+
+**Cheklovlar:**
+- 8 GB VRAM  LLM uchun tor (kontekst + KV-cache hisobga olin 7B chegarada).
+- Drayver 615.71.09  RTX 50xx (Blackwell) uchun nisbatan eski yangi drayver, kelajakda CUDA versiyasi mosligini tekshirish kerak.
+- `nvidia-smi` chiqishida `N/A` jarayonlar (konteyner/namespace cheklovi bo'lishi mumkin).
+
+## 3 TAVSIYA
+1. **VRAM monitoringi:** ollama ishlayotganda `nvidia-smi --query-gpu=memory.used --format=csv -l 1` bilan kuzatish; 7B Q4 dan yuqorisini ishlatmang.
+2. **Quvvat/klok sozlamasi:** `nvidia-smi -q -d POWER` va persistence rejimini tekshirib, laptopda PowerMizer sozlamalarini balansga qo'ying.
+3. **Drayver mosligi:** CUDA toolkit versiyasini (`nvcc --version` yoki `nvidia-smi` tepasidagi CUDA versiyasi) drayver 615.71.09 bilan solishtiring va kerak bo'lsa yangilang.
+
+Hech narsa o'zgartirilmadi  faqat o'qish (read-only) bajarildi.
+
+##### audit-2.log
+[0m
+> build  deepseek-flash
+[0m
+[0m$ [0msystemctl --user status ferma-agent --no-pager | head -6; echo "---NRestarts---"; systemctl --user show ferma-agent -p NRestarts
+ ferma-agent.service - Ferma Agent (render/hisoblash ishchisi)
+     Loaded: loaded (/home/ahmadjon/.config/systemd/user/ferma-agent.service; enabled; preset: disabled)
+    Drop-In: /usr/lib/systemd/user/service.d
+             10-timeout-abort.conf
+             /run/user/1000/systemd/user.control/ferma-agent.service.d
+             50-CPUWeight.conf, 50-IOWeight.conf
+---NRestarts---
+NRestarts=0
+[0m
+[0m$ [0mecho "---error count (200 lines)---"; journalctl --user -u ferma-agent --no-pager -n 200 -o cat 2>/dev/null | grep -icE 'xato|error|timeout|502'; echo "---last 10---"; journalctl --user -u ferma-agent --no-pager -n 20 -o cat 2>/dev/null | tail -10
+---error count (200 lines)---
+79
+---last 10---
+[15:46:31] Ulanish xatosi: URLError: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1082)>  30s dan keyin qayta
+[15:47:01] Ulanish xatosi: URLError: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1082)>  30s dan keyin qayta
+[15:47:32] Ulanish xatosi: URLError: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1082)>  30s dan keyin qayta
+[15:48:03] Ulanish xatosi: URLError: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1082)>  30s dan keyin qayta
+[15:51:44] Vazifa: f0dea6ed4a  for D in $(ls -dt ~/.ferma/work/job-* 2>/dev/null | head -12
+[15:51:44]   bajarildi: exit=0 (0.013s)
+[15:51:56] Vazifa: abb2a6414a  echo "monitor=$(ps -C gnome-system-monitor -o pid= | wc -l)"
+[15:51:57]   bajarildi: exit=0 (0.014s)
+[16:01:30] Ulanish xatosi: URLError: <urlopen error [Errno 101] Network is unreachable>  3s dan keyin qayta
+[16:01:54] Vazifa: e9d1bdfba9  bash audit_runner.sh U2VuIGZlcm1hIGF1ZGl0aSBhZ2VudGlzYW4gKDY
+[0m
+[0m$ [0mls -la ~/.ferma/config.json
+-rw-------. 1 ahmadjon ahmadjon 318  28 14:01 /home/ahmadjon/.ferma/config.json
+[0m
+## TOPILMALAR
+
+1. **Restart bo'lmagan.** `NRestarts=0`, service `enabled` va aktiv. systemd darajasida qulash/restart yo'q.
+2. **Uzilishga chidamli.** Xatolar (79/200 qator = ~40%) bor, lekin agent o'zi qayta ulanadi  backoff mavjud: "30s dan keyin qayta", "3s dan keyin qayta". Vazifalar shu orasida muvaffaqiyatli bajarilgan (`exit=0`, 0.013s).
+3. **Asosiy xato  tarmoq/SSL.** `SSL: UNEXPECTED_EOF_WHILE_READING` va `[Errno 101] Network is unreachable`  remote endpoint (proxy/502) tomonda beqaror, agent aybdor emas.
+4. **Config xavfsiz.** `~/.ferma/config.json` ruxsati `-rw-------` (600), egasi `ahmadjon`  yaxshi.
+5. **Xavotir:** xatolar tez-tez (71s, 30s oraliqda), sekin-ishdan ko'ra endpoint uzilgan. Retry bor, lekin log shovqinli va "muvaffaqiyat" chegarasi yo'q.
+
+## 3 TAVSIYA
+
+1. **Backoff'ni eksponensial qil** (3s30s5m, cap bilan) va log "recovered" yozuvi qo'sh  hozir cheksiz bir xil 30s loop ko'rinadi.
+2. **Endpoint/SSL sababini tekshir**  proxy yoki DNS tomonidagi `502`/EOF; agentni ayblashdan oldin upstream health-check qo'sh.
+3. **Log rotating/monitoring:** journald `RateLimit` va oddiy health-alert (masalan, 5 daqiqada >20 xato bo'lsa signal)  hozir xato ko'rsatkichi faqat qo'lda ko'rinadi.
+
+**Xulosa:** Agent uzilishga chidamli, restart bo'lmagan (NRestarts=0)  ishonchlilik 7/10 asosli, nuqson upstream tarmoqda.
+
+##### audit-3.log
+64
+---
+0/home/ahmadjon/.ferma/results
+---
+/dev/nvme0n1p3     236G          47G  188G           20% /
+[0m
+[0m$ [0mfind ~/.ferma/work -maxdepth 1 -type d -mtime +2 -printf '%f\n' 2>/dev/null | head -20; echo "=== ENG KATTA ==="; du -ah ~/.ferma 2>/dev/null | sort -rh | head -10
+job-08f6e547c5dd-47rekgd3
+job-f3b7bb8a9b76-yp5ts4i3
+job-210b0dec417c-8i9tqq4q
+job-da07d70ec7f6-q_9jzjxa
+job-5b929a9ee93c-cv5attwn
+job-fbb6fe7cd38a-g2qohg9b
+job-d17fe5f28272-pl8kzvw5
+job-d3227e22a13e-2q9tywzy
+job-a7ab0c49cf92-0wczdqno
+job-18e55fe8def4-8r8s7njb
+job-49b3d91940dc-um13rkd7
+job-1b8ebcff805b-u5wie3dv
+job-bea3f68180e6-st3iti4a
+job-52f289b8a0df-pg1csrn0
+job-d3801bab91bf-qjw3hpn7
+job-72ac06807279-d551lc9g
+job-04b9018385bc-axi4a10p
+job-d3532cced02c-daqi9m8e
+job-7bc1a5b854fe-e2sequgu
+job-b0176da831ac-s6obed4k
+=== ENG KATTA ===
+3,6M/home/ahmadjon/.ferma
+3,5M/home/ahmadjon/.ferma/work
+1,1M/home/ahmadjon/.ferma/work/job-52f289b8a0df-pg1csrn0/ferma-wallpaper.png
+1,1M/home/ahmadjon/.ferma/work/job-52f289b8a0df-pg1csrn0
+408K/home/ahmadjon/.ferma/work/job-a8a8b05c78b0-tr8jnei2
+376K/home/ahmadjon/.ferma/work/job-0842c3e75830-cn4lsg1_
+368K/home/ahmadjon/.ferma/work/job-d121c3d385da-fe1wm_4x
+324K/home/ahmadjon/.ferma/work/job-a8a8b05c78b0-tr8jnei2/dumpf
+300K/home/ahmadjon/.ferma/work/job-0842c3e75830-cn4lsg1_/dump2
+296K/home/ahmadjon/.ferma/work/job-d121c3d385da-fe1wm_4x/dump
+[0m
+## TOPILMALAR
+
+**Hajm**
+- `~/.ferma` = **3,6M**, shundan `~/.ferma/work` = **3,5M**
+- `~/.ferma/results` = **0** (bo'sh, mavjud emas)
+- Disk `/`: **47G / 236G ishlatilgan (20%)**  joy yetarli, xavf yo'q
+
+**Eski joblar**
+- `~/.ferma/work` ichida **250 ta** yozuv
+- **64 ta** job papkasi 2 kundan eski (`mtime +2`)
+- Eng katta fayl: `job-52f289b8a0df-pg1csrn0/ferma-wallpaper.png`  **1,1M** (bitta o'zi umumiy hajmning ~1/3)
+
+**Xavf**
+- Umumiy hajm juda kichik (3,6M)  **kritik xavf yo'q**, disk to'lish xavfi yo'q
+- Yagona "axlat": 64 ta eski job papkasi + bitta 1,1M wallpaper tasviri
+- `results` papkasi bo'sh  tekshirish kerak, ehtimol natijalar boshqa joyga yozilmoqda
+
+## Tozalash tavsiyasi (bajarmasdan  avval ko'rib chiqing)
+
+```bash
+# 1. Avval nima o'chishini ko'ring (xavfsiz, o'chirmaydi)
+find ~/.ferma/work -maxdepth 1 -type d -mtime +2 -exec du -sh {} +
+
+# 2. Eski (>2 kun) job papkalarini o'chirish
+find ~/.ferma/work -maxdepth 1 -type d -mtime +2 -exec rm -rf {} +
+
+# 3. Katta wallpaper faylini alohida o'chirish (ixtiyoriy)
+rm -f ~/.ferma/work/job-52f289b8a0df-pg1csrn0/ferma-wallpaper.png
+```
+
+Eslatma: o'chirishdan oldin ishlab turgan joblar yo'qligiga ishonch hosil qiling  2-kundan yangi joblarga tegmang.

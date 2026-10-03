@@ -1,0 +1,19 @@
+# Maxfiy fayllar — hech qachon commit qilinmasin
+config.json
+session.json
+center-token.txt
+*.secret
+.env
+
+# Ishchi ma'lumotlar
+work/
+results/
+archives/
+*.log
+
+# Build natijalari
+ferma-all.pyz
+dist/
+*.bak-*
+*.pyc
+__pycache__/
