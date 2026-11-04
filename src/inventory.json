@@ -1,0 +1,45 @@
+{
+  "nodes": [
+    {
+      "name": "fedora-1",
+      "ip": "100.75.208.24",
+      "os": "linux",
+      "source": "tailscale",
+      "online": false,
+      "reachable": false,
+      "agent_port": 8787,
+      "agent": false
+    },
+    {
+      "name": "fedora-gtx",
+      "ip": "100.96.203.43",
+      "os": "linux",
+      "source": "tailscale",
+      "online": false,
+      "reachable": false,
+      "agent_port": 8787,
+      "agent": false
+    },
+    {
+      "name": "MacBook-Air-probox.local",
+      "ip": "100.79.200.97",
+      "os": "macOS",
+      "source": "tailscale",
+      "role": "controller",
+      "reachable": true,
+      "agent_port": 8787,
+      "agent": false
+    },
+    {
+      "name": "prototype",
+      "ip": "100.101.103.93",
+      "os": "linux",
+      "source": "tailscale",
+      "online": false,
+      "reachable": false,
+      "agent_port": 8787,
+      "agent": false
+    }
+  ],
+  "updated_at": "2026-10-22 10:37:43"
+}

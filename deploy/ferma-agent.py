@@ -436,7 +436,7 @@ MAX_ARTIFACT = 512 * 1024 * 1024  # 512 MB bitta natija fayli
 WORK_ROOT = os.path.join(os.path.expanduser("~"), ".ferma", "work")
 VERSION = "0.1.0"
 START = time.time()
-_POINTER_URL = "https://gist.githubusercontent.com/ozodbekprog/3319c09855eb4cae368a11383386d440/raw/ferma-server.txt"   # build_standalone tomonidan to'ldiriladi (barqaror manzil)
+_POINTER_URL = ""   # 998 migratsiyasi: eski gist manzili ishlamaydi — --server manzili ishlatiladi
 
 CFG = load_config()
 # Agent faqat WORKER token bilan ishlaydi (admin token markazda qoladi).

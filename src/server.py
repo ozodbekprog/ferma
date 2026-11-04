@@ -809,8 +809,13 @@ def req_scheme(handler) -> str:
     fwd = (handler.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip()
     if fwd in ("http", "https"):
         return fwd
-    host = (handler.headers.get("Host") or "").split(":")[0]
-    return "https" if host.endswith(".ts.net") else "http"
+    host = (handler.headers.get("Host") or "").strip()
+    name, _, port = host.rpartition(":")
+    if not name:
+        name, port = port, ""
+    if name.endswith(".ts.net") and port in ("", "443"):
+        return "https"
+    return "http"
 
 
 def universal_command(host: str, python: str = "python3",
@@ -824,13 +829,20 @@ def universal_command(host: str, python: str = "python3",
 
 def standalone_path() -> str:
     """deploy/ferma-agent.py yo'lini qaytaradi; bo'lmasa yasaydi."""
-    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deploy", "ferma-agent.py")
-    if not os.path.exists(p):
-        import subprocess
-        subprocess.run([sys.executable, os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "deploy", "build_standalone.py")],
-            check=True, capture_output=True)
-    return p
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(here, "deploy", "ferma-agent.py"),
+        os.path.normpath(os.path.join(here, "..", "deploy", "ferma-agent.py")),
+        os.path.normpath(os.path.join(here, "..", "..", "deploy", "ferma-agent.py")),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    import subprocess
+    subprocess.run([sys.executable, os.path.join(
+        here, "deploy", "build_standalone.py")],
+        check=True, capture_output=True)
+    return candidates[0]
 
 
 def ensure_standalone() -> None:
@@ -989,7 +1001,10 @@ class Handler(BaseHTTPRequestHandler):
             kind = m.group(2)
             if kind == "agent.py":
                 with open(standalone_path(), "rb") as f:
-                    return self._send(f.read(), ctype="text/x-python; charset=utf-8")
+                    data = f.read()
+                data = data.replace(b'_EMBEDDED_TOKEN = ""',
+                                    b'_EMBEDDED_TOKEN = "' + WORKER_TOKEN.encode("utf-8") + b'"')
+                return self._send(data, ctype="text/x-python; charset=utf-8")
             if kind == "ferma-all.pyz":
                 p = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                  "deploy", "ferma-all.pyz")
